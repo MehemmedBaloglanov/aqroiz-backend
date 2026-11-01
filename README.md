@@ -29,6 +29,7 @@ Gündəlik iş vəziyyəti `PROGRESS.md` faylındadır.
 - Starter-lər modullara bölünüb: `spring-boot-starter-webmvc` (əvvəlki `-web`), `spring-boot-starter-flyway` (Flyway üçün mütləqdir, yalnız `flyway-core` kifayət deyil), `spring-boot-starter-security-oauth2-resource-server`.
 - Hər modulun öz test starter-i var: `spring-boot-starter-webmvc-test`, `spring-boot-starter-data-jpa-test` və s.
 - Testcontainers artefaktlarının adı dəyişib: `testcontainers-postgresql`, `testcontainers-junit-jupiter`.
+- `PostgreSQLContainer` yeni paketdədir və generic deyil: `org.testcontainers.postgresql.PostgreSQLContainer` (köhnə: `org.testcontainers.containers.PostgreSQLContainer<?>`).
 - Jackson 3: `ObjectMapper` əvəzinə `JsonMapper` (paket `tools.jackson.databind`).
 - Avtokonfiqurasiya sinifləri yeni paketlərdədir (məsələn, `org.springframework.boot.flyway.autoconfigure`).
 - Spring Boot 3.x üçün yazılmış nümunə kodu birbaşa köçürməzdən əvvəl yoxlayın.
@@ -250,7 +251,11 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 
 - Domen qaydaları: adi unit testlər (Spring konteksti olmadan).
 - Repository və API: Testcontainers ilə real PostgreSQL.
-- Modul sərhədləri: Spring Modulith `verify()` testi.
+- Modul sərhədləri: Spring Modulith `verify()` testi (`ModularityTests`).
+- Tətbiqin bütövlükdə işə düşməsi: `AqroizBackendApplicationTests` (Testcontainers bazası ilə).
+- Testcontainers PostgreSQL imici `compose.yaml`-dakı ilə **eyni** olmalıdır (`TestcontainersConfiguration.POSTGRES_IMAGE`). Versiya dəyişəndə hər ikisi birlikdə dəyişdirilir.
+- Lokal inkişaf üçün yeganə işə salma yolu: `compose.yaml` + `AqroizBackendApplication`. Testlər isə həmişə Testcontainers ilə işləyir və lokal bazaya toxunmur.
+- Bütün testlər: `.\mvnw test` (IntelliJ terminalında, layihə qovluğunda).
 - Hər biznes qaydası (B1–B11) ən azı bir testlə qorunur.
 
 ---
@@ -259,12 +264,12 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 
 - Əsas branch: **`main`**.
 - Commit mesajları: [Conventional Commits](https://www.conventionalcommits.org/).
-    - `feat:` yeni funksiya
-    - `fix:` səhv düzəlişi
-    - `refactor:` davranışı dəyişməyən dəyişiklik
-    - `test:` testlər
-    - `docs:` sənədlər
-    - `chore:` texniki iş (asılılıq, konfiqurasiya)
+  - `feat:` yeni funksiya
+  - `fix:` səhv düzəlişi
+  - `refactor:` davranışı dəyişməyən dəyişiklik
+  - `test:` testlər
+  - `docs:` sənədlər
+  - `chore:` texniki iş (asılılıq, konfiqurasiya)
 - Hər commit-dən əvvəl tətbiq işə düşməli və testlər keçməlidir.
 
 ---
@@ -275,7 +280,7 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 | --- | --- | --- |
 | 1 | Layihə skeleti, Docker PostgreSQL, Git | ✅ Hazır |
 | 2 | README.md, PROGRESS.md | ✅ Hazır |
-| 3 | `shared`: xəta formatı, `Clock`, cari istifadəçi, sənəd nömrələri | ⏳ |
+| 3 | `shared`: xəta formatı, `Clock`, cari istifadəçi, sənəd nömrələri | 🔄 Davam edir (3.1 hazır) |
 | 4 | `identity`: tenant, istifadəçilər, rollar, JWT ilə giriş | ⏳ |
 | 5 | `catalog`: məhsullar, sortlar, gündəlik qiymətlər | ⏳ |
 | 6 | `farmers`: fermer reyestri | ⏳ |
@@ -307,6 +312,9 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 | 2026-11-01 | `open-in-view: false` | Gizli lazy loading və performans problemlərinin qarşısı |
 | 2026-11-01 | YAML konfiqurasiya | İç-içə parametrlər üçün oxunaqlı |
 | 2026-11-01 | Sətir sonu LF | Linux server; Windows-da işləsək də repoda vahid format |
+| 2026-11-01 | `shared` modulu `OPEN` tipdədir | İnfrastruktur hamıya açıqdır; biznes modulları heç vaxt `OPEN` olmur |
+| 2026-11-01 | `TestAqroizBackendApplication` silindi | Lokal işə salmanın iki yolu fərqli bazalara qoşulub çaşqınlıq yaradardı |
+| 2026-11-01 | Testlərdə `postgres:17-alpine`, `latest` yox | Test və real mühit eyni versiyada olmalıdır |
 | 2026-11-01 | Repo public | Claude-un linkdən yoxlaya bilməsi; gizli dəyərlər və müştəri məlumatları heç vaxt repoya düşmür |
 
 ---
