@@ -6,13 +6,18 @@ import org.springframework.context.annotation.Bean;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.testcontainers.utility.DockerImageName;
 
+/**
+ * Testlər üçün real PostgreSQL konteyneri.
+ * Versiya compose.yaml-dakı ilə EYNİ olmalıdır.
+ */
 @TestConfiguration(proxyBeanMethods = false)
 class TestcontainersConfiguration {
+
+    static final String POSTGRES_IMAGE = "postgres:17-alpine";
 
     @Bean
     @ServiceConnection
     PostgreSQLContainer postgresContainer() {
-        return new PostgreSQLContainer(DockerImageName.parse("postgres:latest"));
+        return new PostgreSQLContainer(DockerImageName.parse(POSTGRES_IMAGE));
     }
-
 }
