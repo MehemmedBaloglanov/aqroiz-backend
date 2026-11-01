@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: aqroiz-postgres
+    environment:
+      POSTGRES_DB: aqroiz
+      POSTGRES_USER: aqroiz
+      POSTGRES_PASSWORD: aqroiz
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      - "5432:5432"
+    volumes:
+      - aqroiz-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aqroiz -d aqroiz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  aqroiz-pgdata:

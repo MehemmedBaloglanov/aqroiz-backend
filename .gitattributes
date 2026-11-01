@@ -1,0 +1,11 @@
+# Bütün mətn faylları repoda LF ilə saxlanılır
+* text=auto eol=lf
+
+# Windows skriptləri CRLF qalmalıdır
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Binar fayllar
+*.jar binary
+*.png binary
+*.jpg binary

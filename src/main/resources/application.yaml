@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: aqroiz
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/aqroiz}
+    username: ${DB_USER:aqroiz}
+    password: ${DB_PASSWORD:aqroiz}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+
+server:
+  port: 8080
