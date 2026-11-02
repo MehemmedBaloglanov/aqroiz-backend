@@ -9,6 +9,14 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
 
 server:
   port: 8080
+
+aqroiz:
+  time:
+    business-zone: Asia/Baku
