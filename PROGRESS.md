@@ -6,23 +6,36 @@ Bu fayl işin gündəliyidir: harada qaldıq, nə hazırdır, növbəti addım n
 
 ## Cari vəziyyət
 
-- **Son tamamlanan:** Addım 3.1 — `shared` paketi (`OPEN` modul), `ModularityTests`, Testcontainers konfiqurasiyası.
-- **Növbəti addım:** Addım 3.2 — vaxt idarəsi (`Clock`, Asia/Baku, bazada UTC).
+- **Son tamamlanan:** Mərhələ 3 — `shared` modulu (3.1 modul və testlər, 3.2 vaxt idarəsi, 3.3 xəta formatı).
+- **Növbəti addım:** Mərhələ 4 — `identity` modulu (tenant, istifadəçilər, rollar, JWT ilə giriş, ilk Flyway miqrasiyası, ilk Postman sorğuları).
 - **Tətbiq işə düşür:** Bəli (`Started AqroizBackendApplication`).
-- **Testlər:** 3 test, hamısı keçir (`.\mvnw test` → BUILD SUCCESS).
+- **Testlər:** 14 test (`.\mvnw clean test` → BUILD SUCCESS).
 - **Bazada cədvəl:** Yoxdur (Flyway miqrasiyası hələ yoxdur).
 - **Yoxlanmalı:** Sessiya 1-in son commit-inin GitHub-a düşdüyü (`git status`, `git log --oneline`, `git ls-files`).
 
 ---
 
-## Növbəti addım: `shared` modulu (dəqiq plan)
+## Növbəti addım: `identity` modulu
+
+Kiçik addımlara bölünəcək, hər biri ayrıca təsdiqlə:
+
+1. Postman qərarı (S1) və `postman/` qovluğu.
+2. Flyway `V1__identity.sql`: `tenants`, `users` cədvəlləri.
+3. Entity-lər və repository-lər + Testcontainers ilə repository testi.
+4. Şifrələmə (`PasswordEncoder`) və JWT (imzalama, yoxlama, `JwtProperties`).
+5. Öz `SecurityFilterChain`: stateless, JWT, CSRF söndürülür, 401/403 də `ProblemDetail` formatında.
+6. `POST /api/auth/login`, `GET /api/auth/me` + Postman.
+7. `CurrentUser` (shared) — tenant və rol token-dən.
+8. Dev üçün ilkin məlumat (demo tenant və istifadəçilər).
+
+## Köhnə plan: `shared` modulu (tamamlandı)
 
 Hər alt addım ayrıca edilir, istifadəçi təsdiq etdikdən sonra növbətiyə keçilir.
 
 1. ✅ `az.aqroiz.shared` paketi və `package-info.java` (Modulith üçün “açıq modul”), `ModularityTests`.
-2. `TimeConfig`: Asia/Baku zonası ilə `Clock` bean-i; `application.yaml`-a `hibernate.jdbc.time_zone: UTC`.
-3. `BusinessRuleException`, `NotFoundException`.
-4. `GlobalExceptionHandler`: `ProblemDetail` + `code` sahəsi, Azərbaycan dilində mesajlar.
+2. ✅ `TimeConfig`: Asia/Baku zonası ilə `Clock` bean-i; `application.yaml`-a `hibernate.jdbc.time_zone: UTC`.
+3. ✅ `BusinessRuleException`, `NotFoundException`.
+4. ✅ `GlobalExceptionHandler`: `ProblemDetail` + `code` sahəsi, Azərbaycan dilində mesajlar.
 5. Yoxlama: tətbiq işə düşür, test keçir, commit.
 
 Qeyd: cari istifadəçi (`CurrentUser`) və sənəd nömrələri (`NumberingService`) `identity` və ilk miqrasiyadan sonra əlavə olunacaq, çünki onlar JWT-yə və `document_counters` cədvəlinə bağlıdır.
@@ -33,11 +46,21 @@ Qeyd: cari istifadəçi (`CurrentUser`) və sənəd nömrələri (`NumberingServ
 
 | # | Sual | Nə vaxt lazımdır |
 | --- | --- | --- |
-| S1 | Postman: lokal kolleksiya faylı, yoxsa Postman Workspace? | `identity` mərhələsində ilk endpoint-dən əvvəl |
+| S1 | Postman: lokal kolleksiya faylı, yoxsa Postman Workspace? (Claude-un tövsiyəsi: repoda fayl) | `identity` mərhələsinin ilk addımı |
 | S2 | JWT gizli açarı prod-da necə saxlanacaq? | Deploy-dan əvvəl |
 | S3 | SMS provayderi hansı olacaq (yerli və ya WhatsApp Business API)? | `notifications` mərhələsi |
 | S4 | Şəxsi məlumatların Azərbaycanda saxlanma tələbi (server yeri) | Deploy-dan əvvəl, hüquqşünasla |
 | S5 | Repo nə vaxt private ediləcək? | İlk pilot müştəridən əvvəl |
+
+## Texniki borc və qeydlər
+
+| # | Qeyd | Nə vaxt |
+| --- | --- | --- |
+| T1 | `Using generated security password` — Spring Security-nin standart konfiqurasiyası | `identity`-də öz konfiqurasiyamızla yox olacaq |
+| T2 | Mockito “self-attaching” xəbərdarlığı (gələcək JDK-larda qadağan) | Mockito istifadəsinə başlayanda `pom.xml`-də agent kimi qoşulacaq |
+| T3 | Maven-in `flyway-community-db-support ... 401` xəbərdarlığı | Zərərsiz, toxunmuruq |
+| T4 | Boş `static` və `templates` qovluqları | İstəyə bağlı silinə bilər |
+| T5 | `GlobalExceptionHandlerTests`-də `@WithMockUser` və `csrf()` | `identity`-dən sonra sadələşəcək |
 
 ---
 
@@ -78,9 +101,9 @@ Qeyd: cari istifadəçi (`CurrentUser`) və sənəd nömrələri (`NumberingServ
 1. `az.aqroiz.shared` paketi və `package-info.java` yaradıldı: `@ApplicationModule(type = OPEN)`.
 2. `ModularityTests` yazıldı: `verify()` və modulların siyahısı. Çıxış: `# Shared (open)`.
 3. start.spring.io-nun yaratdığı test faylları araşdırıldı:
-    - `AqroizBackendApplicationTests` saxlanıldı (tüstü testi, Testcontainers ilə).
-    - `TestAqroizBackendApplication` silindi (lokal işə salmanın ikinci yolu çaşqınlıq yaradardı).
-    - `TestcontainersConfiguration`: `postgres:latest` → `postgres:17-alpine` (sabit `POSTGRES_IMAGE`).
+   - `AqroizBackendApplicationTests` saxlanıldı (tüstü testi, Testcontainers ilə).
+   - `TestAqroizBackendApplication` silindi (lokal işə salmanın ikinci yolu çaşqınlıq yaradardı).
+   - `TestcontainersConfiguration`: `postgres:latest` → `postgres:17-alpine` (sabit `POSTGRES_IMAGE`).
 4. IntelliJ-də yeni fayllar üçün sətir sonu LF təyin edildi.
 5. `.\mvnw test` → `Tests run: 3, Failures: 0, Errors: 0` → BUILD SUCCESS.
 
@@ -93,3 +116,37 @@ Qeyd: cari istifadəçi (`CurrentUser`) və sənəd nömrələri (`NumberingServ
 | Claude GitHub-dan köhnə (keşlənmiş) səhifə aldı | GitHub keşi və avtomatik girişə qadağalar | Repo vəziyyəti `git status/log/ls-files` çıxışı ilə yoxlanır |
 
 **Növbəti sessiyada ilk iş:** `git status`, `git log --oneline`, `git ls-files` nəticəsini Claude-a göndərmək, sonra Addım 3.2.
+
+### 2026-11-02 — Sessiya 2: `shared` modulunun tamamlanması
+
+**Addım 3.2 — Vaxt idarəsi:**
+
+1. `application.yaml`: `spring.jpa.properties.hibernate.jdbc.time_zone: UTC`, `aqroiz.time.business-zone: Asia/Baku`.
+2. `TimeProperties` (record, `@ConfigurationProperties("aqroiz.time")`, standart `Asia/Baku`).
+3. `TimeConfig`: `Clock.system(ZoneId.of(...))` bean-i.
+4. `TimeConfigTests` (4 test, `ApplicationContextRunner`): standart zona, dəyişdirilə bilən zona, səhv zonada tətbiq işə düşmür, UTC 21:30 = Bakıda növbəti gün.
+
+**Addım 3.3 — Xətaların vahid idarəsi:**
+
+1. `az.aqroiz.shared.error`: `ErrorCodes`, `BusinessRuleException`, `NotFoundException`, `FieldViolation`, `GlobalExceptionHandler`.
+2. `ValidationMessages.properties` — Azərbaycan dilində validasiya mesajları.
+3. `GlobalExceptionHandlerTests` (7 test, `@WebMvcTest`, test üçün xüsusi controller).
+
+**Rastlaşılan problemlər:**
+
+| Problem | Səbəb | Həll |
+| --- | --- | --- |
+| `expected: Asia/Tashkent but was: Asia/Baku` | Testdə gözlənilən dəyər kopyalanarkən qarışmışdı | Test düzəldildi; tətbiq düzgün işləyirdi |
+| `invalidZonePreventsStartup` testi silinmişdi | Logdakı `Unknown time-zone ID: Asia/Bakuu` xəta sanılmışdı | Test qaytarıldı. Bu WARN gözləniləndir |
+| `Could not find a valid Docker environment` | Docker Desktop açıq deyildi | Docker açıldı; avtomatik başlama tövsiyə olundu |
+| Validasiya mesajları ingiliscə (`must not be blank`) | Fayl adı `ValidationMessage.properties` idi (sonda `s` yox) | `ValidationMessages.properties` olaraq dəyişdirildi, `mvnw clean test` |
+| Cavabda `Yalnış sorğu` | Yazı səhvi | `Yanlış sorğu`; testə `$.title` yoxlaması əlavə olundu |
+| Commit mesajı formata uyğun deyildi (`refactor PROGRESS and README files`) | — | Göndərilmiş tarixçə dəyişdirilmədi; növbəti commit-lərdə Conventional Commits |
+
+**Yoxlanılanlar:**
+
+- `.\mvnw test` → `Tests run: 14` (gözlənilən; son nəticəni Claude-a göndərmək)
+- `GlobalExceptionHandlerTests` → 7/7 keçir
+- Jackson 3 `ProblemDetail` sahələrini yuxarı səviyyədə yazır
+
+**Növbəti sessiyada ilk iş:** `git log --oneline` (3.3 commit-inin olduğunu yoxlamaq), S1 qərarı, sonra `identity`.

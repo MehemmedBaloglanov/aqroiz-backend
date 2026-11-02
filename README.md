@@ -30,7 +30,8 @@ Gündəlik iş vəziyyəti `PROGRESS.md` faylındadır.
 - Hər modulun öz test starter-i var: `spring-boot-starter-webmvc-test`, `spring-boot-starter-data-jpa-test` və s.
 - Testcontainers artefaktlarının adı dəyişib: `testcontainers-postgresql`, `testcontainers-junit-jupiter`.
 - `PostgreSQLContainer` yeni paketdədir və generic deyil: `org.testcontainers.postgresql.PostgreSQLContainer` (köhnə: `org.testcontainers.containers.PostgreSQLContainer<?>`).
-- Jackson 3: `ObjectMapper` əvəzinə `JsonMapper` (paket `tools.jackson.databind`).
+- Jackson 3: `ObjectMapper` əvəzinə `JsonMapper` (paket `tools.jackson.databind`). `ProblemDetail`-in əlavə sahələri (`code`, `timestamp`) JSON-da yuxarı səviyyədə yazılır — yoxlanılıb.
+- `@WebMvcTest` paketi: `org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest` — yoxlanılıb.
 - Avtokonfiqurasiya sinifləri yeni paketlərdədir (məsələn, `org.springframework.boot.flyway.autoconfigure`).
 - Spring Boot 3.x üçün yazılmış nümunə kodu birbaşa köçürməzdən əvvəl yoxlayın.
 
@@ -41,7 +42,7 @@ Gündəlik iş vəziyyəti `PROGRESS.md` faylındadır.
 ### Tələblər
 
 - JDK 21
-- Docker Desktop
+- Docker Desktop — **həmişə açıq olmalıdır** (lokal baza və Testcontainers testləri üçün). Settings → General → “Start Docker Desktop when you sign in”
 - IntelliJ IDEA
 - Git
 - pgAdmin 4 (bazaya baxmaq üçün, istəyə görə)
@@ -92,6 +93,10 @@ IntelliJ-də `AqroizBackendApplication` və ya:
 
 Uğur: logda `Started AqroizBackendApplication`.
 
+Layihə əmrləri (`.\mvnw ...`, `git ...`, `docker compose ...`) **yalnız IntelliJ terminalında**, layihə qovluğunda icra olunur. Administrator pəncərəsi yalnız Windows servisləri üçündür.
+
+Testlər: `.\mvnw test`. Fayl adı dəyişəndə və ya resurs silinəndə: `.\mvnw clean test`.
+
 ### Konfiqurasiya və mühit dəyişənləri
 
 `application.yaml` lokal dəyərləri standart kimi saxlayır, prod-da mühit dəyişənləri ilə əvəz olunur:
@@ -101,6 +106,12 @@ Uğur: logda `Started AqroizBackendApplication`.
 | `DB_URL` | `jdbc:postgresql://localhost:5432/aqroiz` | Baza ünvanı |
 | `DB_USER` | `aqroiz` | Baza istifadəçisi |
 | `DB_PASSWORD` | `aqroiz` | Baza şifrəsi |
+
+Tətbiqin öz parametrləri (`aqroiz.*`):
+
+| Parametr | Standart | Mənası |
+| --- | --- | --- |
+| `aqroiz.time.business-zone` | `Asia/Baku` | Biznes tarixlərinin hesablandığı zona. Səhv ad yazılsa, tətbiq işə düşmür |
 
 Gizli dəyərlər (`.env`) heç vaxt repoya düşmür. Repo hazırda **public**-dir.
 
@@ -185,12 +196,46 @@ az.aqroiz.farmers
 
 - Bazada vaxt **UTC**-də saxlanılır (`timestamptz`, Java-da `Instant`).
 - Biznes tarixləri (qiymət günü, qəbul günü) **Asia/Baku** zonasında hesablanır (`LocalDate`).
-- Cari vaxt həmişə inject olunan `Clock` vasitəsilə alınır, `Instant.now()` birbaşa çağırılmır (testlərdə vaxtı idarə etmək üçün).
+- Cari vaxt həmişə inject olunan `Clock` vasitəsilə alınır, `Instant.now()`, `LocalDate.now()` birbaşa çağırılmır (testlərdə vaxtı idarə etmək üçün). `clock.instant()` → UTC an, `LocalDate.now(clock)` → Bakı günü.
+- `Clock` bean-i: `az.aqroiz.shared.TimeConfig`, parametr: `TimeProperties` (`aqroiz.time.business-zone`).
+- Hibernate bazaya vaxtı UTC ilə yazır: `spring.jpa.properties.hibernate.jdbc.time_zone: UTC`.
+- Səbəb: UTC 21:30 (1 noyabr) = Bakı 01:30 (2 noyabr). Səhv zona qəbzə səhv günün qiymətini tətbiq edər.
 
 ### Xətalar
 
-- API xətaları RFC 9457 `ProblemDetail` formatında, əlavə `code` sahəsi ilə.
-- `404` tapılmadı, `400` validasiya, `401` giriş, `403` icazə, `409` konflikt, `422` biznes qaydası.
+Bütün xəta sinifləri: `az.aqroiz.shared.error`.
+
+| İstisna / vəziyyət | HTTP | `code` |
+| --- | --- | --- |
+| `NotFoundException` | 404 | `NOT_FOUND` |
+| `BusinessRuleException(code, message)` | 422 | modulun öz kodu (məs., `NET_NOT_POSITIVE`) |
+| `@Valid` validasiya xətası | 400 | `VALIDATION_FAILED` + `errors[]` |
+| Oxunmayan JSON | 400 | `MALFORMED_REQUEST` |
+| Parametrin tipi səhvdir (`/x/abc` əvəzinə rəqəm) | 400 | `TYPE_MISMATCH` |
+| `AuthenticationException` | 401 | `UNAUTHORIZED` |
+| `AccessDeniedException` | 403 | `FORBIDDEN` |
+| Spring MVC-nin digər xətaları (405, 415...) | müvafiq | `HTTP_{status}` |
+| Gözlənilməz xəta | 500 | `INTERNAL_ERROR` — detal yalnız logda, cavabda yox |
+
+Cavab formatı (RFC 9457 `ProblemDetail`):
+
+```json
+{
+  "type": "about:blank",
+  "title": "Yanlış sorğu",
+  "status": 400,
+  "detail": "Bəzi sahələr düzgün doldurulmayıb.",
+  "instance": "/api/farmers",
+  "code": "VALIDATION_FAILED",
+  "timestamp": "2026-11-02T16:20:00Z",
+  "errors": [ { "field": "fullName", "message": "boş ola bilməz" } ]
+}
+```
+
+- 400 — sorğu formaca səhvdir; 422 — formaca düzgündür, biznes qaydası qəbul etmir.
+- Başqa tenant-ın obyektinə müraciət 404 qaytarır (403 yox) — obyektin mövcudluğu açıqlanmır.
+- Frontend qərarı mətnə yox, `code`-a görə verir.
+- Validasiya mesajları Azərbaycan dilində: `src/main/resources/ValidationMessages.properties`. Ad **dəqiq** belə olmalıdır (sonda `s`), əks halda Hibernate Validator faylı görmür və ingiliscə mesaj qaytarır. Fayl UTF-8-dir (IntelliJ: Settings → Editor → File Encodings → properties: UTF-8, native-to-ascii söndürülüb).
 
 ---
 
@@ -280,7 +325,7 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 | --- | --- | --- |
 | 1 | Layihə skeleti, Docker PostgreSQL, Git | ✅ Hazır |
 | 2 | README.md, PROGRESS.md | ✅ Hazır |
-| 3 | `shared`: xəta formatı, `Clock`, cari istifadəçi, sənəd nömrələri | 🔄 Davam edir (3.1 hazır) |
+| 3 | `shared`: modul, `Clock`, xəta formatı | ✅ Hazır (`CurrentUser` və `NumberingService` `identity`-dən sonra) |
 | 4 | `identity`: tenant, istifadəçilər, rollar, JWT ilə giriş | ⏳ |
 | 5 | `catalog`: məhsullar, sortlar, gündəlik qiymətlər | ⏳ |
 | 6 | `farmers`: fermer reyestri | ⏳ |
@@ -315,6 +360,11 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 | 2026-11-01 | `shared` modulu `OPEN` tipdədir | İnfrastruktur hamıya açıqdır; biznes modulları heç vaxt `OPEN` olmur |
 | 2026-11-01 | `TestAqroizBackendApplication` silindi | Lokal işə salmanın iki yolu fərqli bazalara qoşulub çaşqınlıq yaradardı |
 | 2026-11-01 | Testlərdə `postgres:17-alpine`, `latest` yox | Test və real mühit eyni versiyada olmalıdır |
+| 2026-11-02 | Vaxt üçün yeganə mənbə inject olunan `Clock` (Asia/Baku), bazada UTC | Qəbzin günü və qiyməti düzgün hesablansın, testlərdə vaxt idarə olunsun |
+| 2026-11-02 | Xətalar RFC 9457 `ProblemDetail` + `code` + `timestamp` | Standart format; frontend koda görə qərar verir |
+| 2026-11-02 | 422 biznes qaydası üçün, 400 format xətası üçün | Frontend üçün fərqli davranış |
+| 2026-11-02 | `GlobalExceptionHandler` `ResponseEntityExceptionHandler`-dən miras alır | Spring MVC-nin bütün xətaları da eyni formatda |
+| 2026-11-02 | 500-də daxili detal cavaba düşmür | Təhlükəsizlik |
 | 2026-11-01 | Repo public | Claude-un linkdən yoxlaya bilməsi; gizli dəyərlər və müştəri məlumatları heç vaxt repoya düşmür |
 
 ---
