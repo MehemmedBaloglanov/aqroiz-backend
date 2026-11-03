@@ -1,0 +1,46 @@
+{
+  "info": {
+    "name": "AqroIz API",
+    "description": "AqroIz backend API sorğuları. Bu fayl repoda saxlanılır: Postman-da dəyişiklik edəndən sonra kolleksiyanı Export edib bu faylın üzərinə yazın və commit edin.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "00 Sistem",
+      "description": "Tətbiqin vəziyyəti. Giriş tələb etmir.",
+      "item": [
+        {
+          "name": "Sağlamlıq yoxlaması",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["actuator", "health"]
+            },
+            "description": "Gözlənilən: 200 OK, {\"status\":\"UP\"}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Tətbiq işləyir (UP)', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
