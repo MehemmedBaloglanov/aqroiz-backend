@@ -6,11 +6,11 @@ Bu fayl işin gündəliyidir: harada qaldıq, nə hazırdır, növbəti addım n
 
 ## Cari vəziyyət
 
-- **Son tamamlanan:** Mərhələ 3 — `shared` modulu (3.1 modul və testlər, 3.2 vaxt idarəsi, 3.3 xəta formatı).
-- **Növbəti addım:** Mərhələ 4 — `identity` modulu (tenant, istifadəçilər, rollar, JWT ilə giriş, ilk Flyway miqrasiyası, ilk Postman sorğuları).
+- **Son tamamlanan:** Addım 4.2 — `V1__identity.sql` (`tenants`, `users`).
+- **Növbəti addım:** Addım 4.3 — `identity` paket quruluşu, `Tenant` və `User` entity-ləri, repository-lər, Testcontainers ilə repository testi.
+- **Bazada cədvəl:** `flyway_schema_history`, `tenants`, `users`.
 - **Tətbiq işə düşür:** Bəli (`Started AqroizBackendApplication`).
 - **Testlər:** 14 test (`.\mvnw clean test` → BUILD SUCCESS).
-- **Bazada cədvəl:** Yoxdur (Flyway miqrasiyası hələ yoxdur).
 - **Yoxlanmalı:** Sessiya 1-in son commit-inin GitHub-a düşdüyü (`git status`, `git log --oneline`, `git ls-files`).
 
 ---
@@ -19,8 +19,8 @@ Bu fayl işin gündəliyidir: harada qaldıq, nə hazırdır, növbəti addım n
 
 Kiçik addımlara bölünəcək, hər biri ayrıca təsdiqlə:
 
-1. Postman qərarı (S1) və `postman/` qovluğu.
-2. Flyway `V1__identity.sql`: `tenants`, `users` cədvəlləri.
+1. ✅ Postman qərarı (S1: repoda fayl) və `postman/` qovluğu.
+2. ✅ Flyway `V1__identity.sql`: `tenants`, `users` cədvəlləri.
 3. Entity-lər və repository-lər + Testcontainers ilə repository testi.
 4. Şifrələmə (`PasswordEncoder`) və JWT (imzalama, yoxlama, `JwtProperties`).
 5. Öz `SecurityFilterChain`: stateless, JWT, CSRF söndürülür, 401/403 də `ProblemDetail` formatında.
@@ -46,7 +46,6 @@ Qeyd: cari istifadəçi (`CurrentUser`) və sənəd nömrələri (`NumberingServ
 
 | # | Sual | Nə vaxt lazımdır |
 | --- | --- | --- |
-| S1 | Postman: lokal kolleksiya faylı, yoxsa Postman Workspace? (Claude-un tövsiyəsi: repoda fayl) | `identity` mərhələsinin ilk addımı |
 | S2 | JWT gizli açarı prod-da necə saxlanacaq? | Deploy-dan əvvəl |
 | S3 | SMS provayderi hansı olacaq (yerli və ya WhatsApp Business API)? | `notifications` mərhələsi |
 | S4 | Şəxsi məlumatların Azərbaycanda saxlanma tələbi (server yeri) | Deploy-dan əvvəl, hüquqşünasla |
@@ -150,3 +149,26 @@ Qeyd: cari istifadəçi (`CurrentUser`) və sənəd nömrələri (`NumberingServ
 - Jackson 3 `ProblemDetail` sahələrini yuxarı səviyyədə yazır
 
 **Növbəti sessiyada ilk iş:** `git log --oneline` (3.3 commit-inin olduğunu yoxlamaq), S1 qərarı, sonra `identity`.
+
+### 2026-11-03 — Sessiya 3: `identity` başlanğıcı
+
+**Addım 4.1 — Postman:**
+
+1. S1 qərarı: kolleksiya repoda fayl kimi.
+2. `postman/AqroIz.postman_collection.json` (`00 Sistem → Sağlamlıq yoxlaması`, kolleksiya səviyyəsində `Bearer {{token}}`).
+3. `postman/AqroIz-local.postman_environment.json` (`baseUrl`, `token`).
+4. Import, mühit seçimi, sorğu: **200 OK**, `{"status":"UP","groups":["liveness","readiness"]}`, testlər 2/2.
+
+**Addım 4.2 — V1 miqrasiyası:**
+
+1. `src/main/resources/db/migration/V1__identity.sql`: `tenants` (status, VÖEN unikal, `version`), `users` (rol `check`, e-poçt kiçik hərflə və unikal, `active`, `last_login_at`, `version`), `ix_users_tenant`, Azərbaycan dilində `comment on`.
+2. `.\mvnw test` → 14 test, BUILD SUCCESS (miqrasiya Testcontainers-in təmiz bazasında tətbiq olundu).
+
+**Rastlaşılan problemlər:**
+
+| Problem | Səbəb | Həll |
+| --- | --- | --- |
+| Claude `health` üçün 401 gözləyirdi, 200 gəldi | Spring Boot actuator `health`-i standart olaraq açıq saxlayır | Claude-un proqnozu səhv idi; nəticə düzgündür |
+| GitHub səhifəsi köhnə keşdən gəlir | Claude-un veb alətinin keşi | `raw.githubusercontent.com` linkləri və ya mətnin yapışdırılması (README, Claude üçün təlimat 7) |
+
+**Növbəti sessiyada ilk iş:** Docker-i açmaq; lokal bazada V1-in tətbiq olunduğunu yoxlamaq (pgAdmin: `tenants`, `users`, `flyway_schema_history`); sonra Addım 4.3.

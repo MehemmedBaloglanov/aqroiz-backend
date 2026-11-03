@@ -249,13 +249,38 @@ Cavab formatı (RFC 9457 `ProblemDetail`):
 - Oflayn sahə tətbiqindən gələn yaratma sorğuları idempotentdir (`clientId`).
 - Hər yeni və ya dəyişən endpoint `postman/` qovluğundakı kolleksiyaya əlavə edilir. Frontend API-ni oradan öyrənir.
 
+### Postman
+
+| Fayl | Məzmun |
+| --- | --- |
+| `postman/AqroIz.postman_collection.json` | Bütün sorğular, qovluqlar üzrə (`00 Sistem`, `01 Auth`, ...) |
+| `postman/AqroIz-local.postman_environment.json` | `baseUrl` = `http://localhost:8080`, `token` (boş, `secret`) |
+
+- Kolleksiya səviyyəsində `Bearer {{token}}`; giriş tələb etməyən sorğularda `noauth`.
+- Hər sorğunun `pm.test` yoxlaması var.
+- Postman dəyişiklikləri fayla özü yazmır: kolleksiya → ⋯ → Export → Collection v2.1 → fayl üzərinə yazılır → commit.
+- Mühit faylına heç vaxt real şifrə və token yazılmır.
+- `/actuator/health` Spring Boot tərəfindən standart olaraq açıqdır (giriş tələb etmir).
+
 ---
 
 ## 6. Verilənlər bazası qaydaları
 
 - Sxemi **yalnız Flyway** dəyişir. `ddl-auto: validate` — Hibernate yalnız uyğunluğu yoxlayır.
-- Miqrasiyalar: `src/main/resources/db/migration/V{nömrə}__{izah}.sql` (iki alt xətt). Məsələn: `V1__identity.sql`.
-- **Tətbiq olunmuş miqrasiya faylı heç vaxt dəyişdirilmir.** Düzəliş yeni miqrasiya ilə edilir.
+- Miqrasiyalar: `src/main/resources/db/migration/V{nömrə}__{izah}.sql` (böyük `V`, **iki** alt xətt). Hər modul öz miqrasiyasını yazır və öz cədvəllərinə cavabdehdir.
+- **Push olunmuş miqrasiya faylı heç vaxt dəyişdirilmir.** Düzəliş yeni miqrasiya ilə edilir. İstisna: fayl hələ push olunmayıbsa, düzəldib lokal bazanı sıfırlamaq olar (`docker compose down -v`).
+- ID-lər `uuid`, bazada `default` yoxdur — tətbiq yaradır (oflayn sahə tətbiqi üçün vacibdir).
+- `created_at`/`updated_at` üçün `default now()` yoxdur — vaxtı tətbiq `Clock` ilə yazır.
+- Siyahı tipli dəyərlər (rol, status): `varchar` + `check`, PostgreSQL `enum` yox (dəyişdirmək asandır). Java-da `enum`.
+- Məhdudiyyət adları: `pk_`, `fk_`, `ck_`, `uq_`, `ix_` prefiksləri ilə — xəta mesajında hansı qaydanın pozulduğu görünsün.
+- Cədvəl və vacib sütunlar üçün `comment on` (Azərbaycan dilində) — pgAdmin-də görünür.
+- Silmək əvəzinə söndürmək (`active = false`), tarixçə qorunur.
+
+### Miqrasiyalar
+
+| Versiya | Fayl | Məzmun |
+| --- | --- | --- |
+| V1 | `V1__identity.sql` | `tenants`, `users` |
 - Cədvəl və sütun adları `snake_case`, cədvəllər cəm halında: `purchase_receipts`.
 - Məhdudiyyətlər bazada da yazılır: `not null`, `check`, `unique`, `foreign key`.
 - pgAdmin yalnız **baxmaq** üçündür. Bazada əl ilə cədvəl yaratmaq, dəyişmək, silmək qadağandır.
@@ -326,7 +351,7 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 | 1 | Layihə skeleti, Docker PostgreSQL, Git | ✅ Hazır |
 | 2 | README.md, PROGRESS.md | ✅ Hazır |
 | 3 | `shared`: modul, `Clock`, xəta formatı | ✅ Hazır (`CurrentUser` və `NumberingService` `identity`-dən sonra) |
-| 4 | `identity`: tenant, istifadəçilər, rollar, JWT ilə giriş | ⏳ |
+| 4 | `identity`: tenant, istifadəçilər, rollar, JWT ilə giriş | 🔄 Davam edir (4.1 Postman, 4.2 V1 miqrasiyası hazır) |
 | 5 | `catalog`: məhsullar, sortlar, gündəlik qiymətlər | ⏳ |
 | 6 | `farmers`: fermer reyestri | ⏳ |
 | 7 | `procurement`: qəbul, ləğv, idempotent sahə sorğuları | ⏳ |
@@ -365,6 +390,10 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 | 2026-11-02 | 422 biznes qaydası üçün, 400 format xətası üçün | Frontend üçün fərqli davranış |
 | 2026-11-02 | `GlobalExceptionHandler` `ResponseEntityExceptionHandler`-dən miras alır | Spring MVC-nin bütün xətaları da eyni formatda |
 | 2026-11-02 | 500-də daxili detal cavaba düşmür | Təhlükəsizlik |
+| 2026-11-03 | Postman kolleksiyası repoda fayl kimi | API dəyişiklikləri kodla birlikdə commit olunur; Claude da görə bilir |
+| 2026-11-03 | E-poçt bütün sistemdə unikal, həmişə kiçik hərflə | Girişdə şirkət seçilmir; `Ali@` və `ali@` iki istifadəçi olmasın |
+| 2026-11-03 | Bir istifadəçi = bir tenant = bir rol | MVP üçün sadəlik |
+| 2026-11-03 | Tenant ayarları (məs., yeşik tarası) öz modullarında | Hər modul öz cədvəllərinə cavabdehdir |
 | 2026-11-01 | Repo public | Claude-un linkdən yoxlaya bilməsi; gizli dəyərlər və müştəri məlumatları heç vaxt repoya düşmür |
 
 ---
@@ -377,5 +406,6 @@ Bu layihə Claude ilə birlikdə, addım-addım yazılır. Claude kodu söhbətd
 2. Burada yazılmış qərarlara zidd kod yazmır. Qərarı dəyişmək lazımdırsa, əvvəl səbəbini izah edib istifadəçinin razılığını alır.
 3. İstifadəçi “davam et” deməyincə növbəti addıma keçmir. Hər addım kiçik olur və yoxlanılan nəticə ilə bitir.
 4. Spring Boot 4.x API-lərindən istifadə edir, 3.x nümunələrini körü-körünə köçürmür. Əmin olmadığı API-ni açıq deyir.
+7. GitHub repo səhifəsi Claude-un veb alətində köhnə keşdən gələ bilər. Faylları oxumaq üçün istifadəçi `raw.githubusercontent.com/MehemmedBaloglanov/aqroiz-backend/main/<fayl>` linklərini göndərir və ya mətni söhbətə yapışdırır. Repo vəziyyəti `git status`, `git log --oneline` ilə yoxlanılır.
 5. Kodun istifadəçinin kompüterində kompilyasiya olunduğunu güman etmir: hər addımın sonunda işə salma və ya test nəticəsi istəyir.
 6. Hər sessiyanın sonunda `PROGRESS.md`-ni yeniləməyi təklif edir, yeni qərarları bu faylın 11-ci bölməsinə əlavə edir.
