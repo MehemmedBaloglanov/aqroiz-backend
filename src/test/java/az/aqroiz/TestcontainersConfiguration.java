@@ -11,7 +11,7 @@ import org.testcontainers.utility.DockerImageName;
  * Versiya compose.yaml-dakı ilə EYNİ olmalıdır.
  */
 @TestConfiguration(proxyBeanMethods = false)
-class TestcontainersConfiguration {
+public class TestcontainersConfiguration {
 
     static final String POSTGRES_IMAGE = "postgres:17-alpine";
 
