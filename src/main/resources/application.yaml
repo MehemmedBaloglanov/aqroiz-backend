@@ -20,3 +20,9 @@ server:
 aqroiz:
   time:
     business-zone: Asia/Baku
+  security:
+    jwt:
+      # Lokal inkişaf üçün. Prod-da mütləq AQROIZ_JWT_SECRET mühit dəyişəni ilə verilir.
+      secret: ${AQROIZ_JWT_SECRET:dev-only-secret-change-me-0123456789-abcdef}
+      ttl: PT12H
+      issuer: aqroiz
