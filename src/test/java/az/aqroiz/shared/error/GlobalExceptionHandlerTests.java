@@ -55,7 +55,7 @@ class GlobalExceptionHandlerTests {
     @Test
     void businessRuleReturns422WithItsOwnCode() throws Exception {
         mockMvc.perform(get("/test/business"))
-                .andExpect(status().isUnprocessableEntity())
+                .andExpect(status().isUnprocessableContent())
                 .andExpect(jsonPath("$.code").value("NET_NOT_POSITIVE"))
                 .andExpect(jsonPath("$.detail").value("Net çəki sıfırdan böyük olmalıdır."));
     }

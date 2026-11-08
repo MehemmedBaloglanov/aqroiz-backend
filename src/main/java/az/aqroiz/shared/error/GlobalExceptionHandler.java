@@ -50,7 +50,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(BusinessRuleException.class)
     ProblemDetail handleBusinessRule(BusinessRuleException ex, HttpServletRequest request) {
-        return problem(HttpStatus.UNPROCESSABLE_ENTITY, "Biznes qaydası pozuldu", ex.getMessage(), ex.getCode(),
+        return problem(HttpStatus.UNPROCESSABLE_CONTENT, "Biznes qaydası pozuldu", ex.getMessage(), ex.getCode(),
                 request.getRequestURI());
     }
 
