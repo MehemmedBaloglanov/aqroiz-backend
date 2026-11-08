@@ -32,6 +32,9 @@ Gündəlik iş vəziyyəti `PROGRESS.md` faylındadır.
 - `PostgreSQLContainer` yeni paketdədir və generic deyil: `org.testcontainers.postgresql.PostgreSQLContainer` (köhnə: `org.testcontainers.containers.PostgreSQLContainer<?>`).
 - Jackson 3: `ObjectMapper` əvəzinə `JsonMapper` (paket `tools.jackson.databind`). `ProblemDetail`-in əlavə sahələri (`code`, `timestamp`) JSON-da yuxarı səviyyədə yazılır — yoxlanılıb.
 - `@WebMvcTest` paketi: `org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest` — yoxlanılıb.
+- 422 statusu: `HttpStatus.UNPROCESSABLE_CONTENT` (köhnə `UNPROCESSABLE_ENTITY` Spring 7-də deprecated); testdə `status().isUnprocessableContent()`.
+- Köhnəlmiş API-ləri tapmaq: `.\mvnw clean test-compile "-Dmaven.compiler.showDeprecation=true" | Select-String "deprecat"` — yalnız `[debug deprecation parameters ...]` sətirləri çıxmalıdır, `[WARNING]` yox.
+- IntelliJ-də köhnəlmiş metod mövzudan asılı olaraq üstündən xətlə **və ya nöqtəli xətlə** göstərilə bilər — həmişə siçanı üzərinə gətirib mesajı oxuyun.
 - Avtokonfiqurasiya sinifləri yeni paketlərdədir (məsələn, `org.springframework.boot.flyway.autoconfigure`).
 - Spring Boot 3.x üçün yazılmış nümunə kodu birbaşa köçürməzdən əvvəl yoxlayın.
 
@@ -112,6 +115,9 @@ Tətbiqin öz parametrləri (`aqroiz.*`):
 | Parametr | Standart | Mənası |
 | --- | --- | --- |
 | `aqroiz.time.business-zone` | `Asia/Baku` | Biznes tarixlərinin hesablandığı zona. Səhv ad yazılsa, tətbiq işə düşmür |
+| `aqroiz.security.jwt.secret` | `${AQROIZ_JWT_SECRET:dev-only-...}` | JWT imza açarı, ən azı 32 bayt. Repodakı dəyər **yalnız lokal** üçündür; prod-da mühit dəyişəni ilə |
+| `aqroiz.security.jwt.ttl` | `PT12H` | Tokenin ömrü |
+| `aqroiz.security.jwt.issuer` | `aqroiz` | Tokenin `iss` claim-i; başqa issuer-in tokeni rədd edilir |
 
 Gizli dəyərlər (`.env`) heç vaxt repoya düşmür. Repo hazırda **public**-dir.
 
@@ -177,11 +183,18 @@ az.aqroiz.farmers
 
 ### Entity-lər
 
+**Qaydanın yeri:** obyektin yalnız öz məlumatına baxan qayda → **entity**-də (e-poçtun normallaşdırılması, adın uzunluğu, status keçidləri). Bazaya, başqa obyektlərə və ya Spring bean-lərinə ehtiyac duyan qayda → **servis**-də (unikallıq yoxlaması, şifrə heşləmə, cari vaxt, icazələr, tranzaksiya, hadisələr). Entity-lər JPA annotasiyaları ilə birlikdə domen obyektidir (ayrıca JPA modeli yoxdur — MVP üçün bilərəkdən seçilib).
+
 - ID: `UUID`, tətbiqdə yaradılır (`UUID.randomUUID()`), bazadan gözlənilmir.
 - JPA üçün `protected` boş konstruktor; yaradılma statik fabrik metodu və ya mənalı konstruktorla.
 - `public` setter yoxdur. Vəziyyət yalnız biznes metodları ilə dəyişir (`confirm()`, `reverse(...)`).
 - Biznes qaydası entity-nin içində yoxlanır və pozulanda `BusinessRuleException` atılır.
-- Paralel dəyişikliklər üçün `@Version` (optimistic locking).
+- Paralel dəyişikliklər üçün `@Version` (optimistic locking). Tip **`Long`** (`long` yox): ID-ni tətbiq yaratdığı üçün Spring Data yeni obyekti versiyanın `null` olmasından tanıyır; `long` olsa, `persist` əvəzinə `merge` çağırılar (lazımsız `SELECT` və başqa obyekt qaytarılır).
+- Vaxt entity-yə parametr kimi ötürülür (`Instant now`); entity `Clock`-u özü çağırmır.
+- `equals`/`hashCode` ID-yə görə, digər obyektin ID-si **getter ilə** (`other.getId()`) — Hibernate proxy-lərinə görə.
+- Başqa aqreqata istinad sadə `UUID` sahəsi ilə (`tenantId`), `@ManyToOne` yox; əlaqəni bazada xarici açar qoruyur.
+- Mətnləri kiçiltmək/böyütmək həmişə `Locale.ROOT` ilə: Azərbaycan/Türk dilində `"I".toLowerCase()` → `"ı"`.
+- Biznes qaydası pozulanda `BusinessRuleException` (422); yalnız proqramçı səhvində mümkün olan hallarda `IllegalArgumentException`/`NullPointerException` (500).
 - Hər biznes cədvəlində `tenant_id` var. Hər sorğu `tenant_id` ilə filtrlənir.
 
 ### Rəqəmlər
@@ -305,6 +318,13 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 | B10 | Qəbz nömrələri tenant daxilində ardıcıl və boşluqsuzdur (Q-000001) | Planlaşdırılıb |
 | B11 | Hər tenant yalnız öz məlumatını görür | Planlaşdırılıb |
 
+### Təhlükəsizlik
+
+- Şifrələr `PasswordEncoderFactories.createDelegatingPasswordEncoder()` ilə heşlənir (`{bcrypt}...` formatı); eyni şifrə hər dəfə fərqli heş verir. Şifrənin özü heç vaxt saxlanılmır və loga yazılmır.
+- Giriş JWT ilə, HS256. Claim-lər: `iss`, `sub` (istifadəçi ID), `tenantId`, `role`, `iat`, `exp`. Tokenə şifrə, e-poçt kimi məlumat yazılmır (məzmun şifrələnmir).
+- Token yoxlaması: imza, bitmə vaxtı (bizim `Clock` ilə, 30 san. tolerantlıq), issuer.
+- Bean-lər: `az.aqroiz.identity.internal.JwtConfig`; token yaradan: `TokenService`.
+
 ### Rollar
 
 | Rol | İcazə |
@@ -351,7 +371,7 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 | 1 | Layihə skeleti, Docker PostgreSQL, Git | ✅ Hazır |
 | 2 | README.md, PROGRESS.md | ✅ Hazır |
 | 3 | `shared`: modul, `Clock`, xəta formatı | ✅ Hazır (`CurrentUser` və `NumberingService` `identity`-dən sonra) |
-| 4 | `identity`: tenant, istifadəçilər, rollar, JWT ilə giriş | 🔄 Davam edir (4.1 Postman, 4.2 V1 miqrasiyası hazır) |
+| 4 | `identity`: tenant, istifadəçilər, rollar, JWT ilə giriş | 🔄 Davam edir (4.1–4.4 hazır) |
 | 5 | `catalog`: məhsullar, sortlar, gündəlik qiymətlər | ⏳ |
 | 6 | `farmers`: fermer reyestri | ⏳ |
 | 7 | `procurement`: qəbul, ləğv, idempotent sahə sorğuları | ⏳ |
@@ -394,6 +414,10 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 | 2026-11-03 | E-poçt bütün sistemdə unikal, həmişə kiçik hərflə | Girişdə şirkət seçilmir; `Ali@` və `ali@` iki istifadəçi olmasın |
 | 2026-11-03 | Bir istifadəçi = bir tenant = bir rol | MVP üçün sadəlik |
 | 2026-11-03 | Tenant ayarları (məs., yeşik tarası) öz modullarında | Hər modul öz cədvəllərinə cavabdehdir |
+| 2026-11-09 | Domen qaydaları entity-də, infrastruktur tələb edənlər servisdə; JPA annotasiyaları domen sinfində | DDD-nin əsas faydası, iki qat kod olmadan |
+| 2026-11-09 | İstifadəçi entity-si `UserAccount` (`User` yox) | Spring Security-nin `User` sinfi ilə ad toqquşmasının qarşısı |
+| 2026-11-09 | JWT HS256, ömür 12 saat, refresh token sonra | Tokeni verən və yoxlayan eyni tətbiqdir; qəbulçu iş günü ərzində təkrar girmir |
+| 2026-11-09 | JWT açarı < 32 bayt olsa tətbiq işə düşmür | HS256 standartı; səhv konfiqurasiya erkən aşkarlansın |
 | 2026-11-01 | Repo public | Claude-un linkdən yoxlaya bilməsi; gizli dəyərlər və müştəri məlumatları heç vaxt repoya düşmür |
 
 ---

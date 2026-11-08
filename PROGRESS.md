@@ -6,11 +6,11 @@ Bu fayl işin gündəliyidir: harada qaldıq, nə hazırdır, növbəti addım n
 
 ## Cari vəziyyət
 
-- **Son tamamlanan:** Addım 4.2 — `V1__identity.sql` (`tenants`, `users`).
-- **Növbəti addım:** Addım 4.3 — `identity` paket quruluşu, `Tenant` və `User` entity-ləri, repository-lər, Testcontainers ilə repository testi.
+- **Son tamamlanan:** Addım 4.4 — şifrə heşləmə və JWT (`JwtProperties`, `JwtConfig`, `TokenService`).
+- **Növbəti addım:** Addım 4.5 — öz `SecurityFilterChain`: açıq/bağlı endpoint-lər, JWT → istifadəçi/şirkət/rol, stateless, CSRF söndürülür, 401/403 `ProblemDetail` formatında.
 - **Bazada cədvəl:** `flyway_schema_history`, `tenants`, `users`.
 - **Tətbiq işə düşür:** Bəli (`Started AqroizBackendApplication`).
-- **Testlər:** 14 test (`.\mvnw clean test` → BUILD SUCCESS).
+- **Testlər:** 34 test (`.\mvnw clean test` → BUILD SUCCESS).
 - **Yoxlanmalı:** Sessiya 1-in son commit-inin GitHub-a düşdüyü (`git status`, `git log --oneline`, `git ls-files`).
 
 ---
@@ -21,8 +21,8 @@ Kiçik addımlara bölünəcək, hər biri ayrıca təsdiqlə:
 
 1. ✅ Postman qərarı (S1: repoda fayl) və `postman/` qovluğu.
 2. ✅ Flyway `V1__identity.sql`: `tenants`, `users` cədvəlləri.
-3. Entity-lər və repository-lər + Testcontainers ilə repository testi.
-4. Şifrələmə (`PasswordEncoder`) və JWT (imzalama, yoxlama, `JwtProperties`).
+3. ✅ Entity-lər (`Tenant`, `UserAccount`) və repository-lər + Testcontainers ilə repository testi.
+4. ✅ Şifrələmə (`PasswordEncoder`) və JWT (imzalama, yoxlama, `JwtProperties`).
 5. Öz `SecurityFilterChain`: stateless, JWT, CSRF söndürülür, 401/403 də `ProblemDetail` formatında.
 6. `POST /api/auth/login`, `GET /api/auth/me` + Postman.
 7. `CurrentUser` (shared) — tenant və rol token-dən.
@@ -59,7 +59,10 @@ Qeyd: cari istifadəçi (`CurrentUser`) və sənəd nömrələri (`NumberingServ
 | T2 | Mockito “self-attaching” xəbərdarlığı (gələcək JDK-larda qadağan) | Mockito istifadəsinə başlayanda `pom.xml`-də agent kimi qoşulacaq |
 | T3 | Maven-in `flyway-community-db-support ... 401` xəbərdarlığı | Zərərsiz, toxunmuruq |
 | T4 | Boş `static` və `templates` qovluqları | İstəyə bağlı silinə bilər |
-| T5 | `GlobalExceptionHandlerTests`-də `@WithMockUser` və `csrf()` | `identity`-dən sonra sadələşəcək |
+| T5 | `GlobalExceptionHandlerTests`-də `@WithMockUser` və `csrf()` | 4.5-də sadələşəcək |
+| T6 | `Annotation processing is enabled...` kompilyator məlumatı | Zərərsiz; lazım olsa `pom.xml`-də prosessorlar açıq göstəriləcək |
+| T7 | JWT açarının dev dəyəri repodadır | Prod profilində dev açarla işə düşməyi qadağan edən yoxlama (deploy-dan əvvəl) |
+| T8 | Refresh token yoxdur, token 12 saat | Pilotdan sonra qiymətləndirmək |
 
 ---
 
@@ -172,3 +175,32 @@ Qeyd: cari istifadəçi (`CurrentUser`) və sənəd nömrələri (`NumberingServ
 | GitHub səhifəsi köhnə keşdən gəlir | Claude-un veb alətinin keşi | `raw.githubusercontent.com` linkləri və ya mətnin yapışdırılması (README, Claude üçün təlimat 7) |
 
 **Növbəti sessiyada ilk iş:** Docker-i açmaq; lokal bazada V1-in tətbiq olunduğunu yoxlamaq (pgAdmin: `tenants`, `users`, `flyway_schema_history`); sonra Addım 4.3.
+
+### 2026-11-09 — Sessiya 4: `identity` entity-ləri və JWT
+
+**Addım 4.3 — Entity-lər:**
+
+1. `az.aqroiz.identity.Role` (açıq API); `internal`: `TenantStatus`, `Tenant`, `UserAccount`, `TenantRepository`, `UserAccountRepository`.
+2. Entity qaydaları: setter yoxdur, fabrik metodları (`Tenant.register`, `UserAccount.create`), `@Version Long`, vaxt parametrlə, `Locale.ROOT` ilə e-poçt.
+3. Testlər: `TenantTest` (5), `UserAccountTest` (5), `IdentityRepositoryTests` (4, Testcontainers: e-poçt unikallığı, xarici açar, VÖEN unikallığı).
+4. `TestcontainersConfiguration` `public` edildi (başqa paketlərdən istifadə üçün).
+
+**Köhnəlmə düzəlişi:** `HttpStatus.UNPROCESSABLE_ENTITY` → `UNPROCESSABLE_CONTENT`, testdə `isUnprocessableContent()`.
+
+**Addım 4.4 — Şifrələmə və JWT:**
+
+1. `application.yaml`: `aqroiz.security.jwt.secret/ttl/issuer`.
+2. `JwtProperties` (record, açar ≥ 32 bayt, ttl > 0), `JwtConfig` (`PasswordEncoder`, `SecretKey`, `JwtEncoder`, `JwtDecoder` — bizim `Clock` və issuer yoxlaması ilə), `IssuedToken`, `TokenService`.
+3. Testlər: `JwtPropertiesTest` (2), `JwtTokenTests` (4: claim-lər, müddət bitməsi, başqa açar, şifrə heşi).
+4. `.\mvnw clean test` → 34 test, BUILD SUCCESS. Postman `health` → 200 (`JwtDecoder`-dən sonra da açıq qaldı).
+
+**Rastlaşılan problemlər:**
+
+| Problem | Səbəb | Həll |
+| --- | --- | --- |
+| `TestcontainersConfiguration is not public` | Təlimatın 6.1 bəndi icra olunmamışdı | IntelliJ quick fix: Make public |
+| `GlobalExceptionHandler.java uses or overrides a deprecated API` | Spring 7-də `UNPROCESSABLE_ENTITY` köhnəlib | `UNPROCESSABLE_CONTENT` |
+| Claude köhnəlmiş metodun üstündən xətlə görünəcəyini demişdi | IntelliJ mövzusunda nöqtəli xətlə göstərilirdi | Siçanla üzərinə gəlib mesajı oxumaq |
+| GitHub səhifəsi yenə köhnə keş | Claude-un veb aləti | `git status/log/ls-files`, SHA ilə raw linklər və ya ZIP (`git archive`) |
+
+**Növbəti sessiyada ilk iş:** Docker-i açmaq, `git log --oneline -3`, sonra Addım 4.5.
