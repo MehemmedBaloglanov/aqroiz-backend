@@ -12,6 +12,8 @@ import az.aqroiz.identity.Role;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
+
+import az.aqroiz.shared.security.CurrentUser;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -95,6 +97,17 @@ class SecurityIntegrationTests {
                 .andExpect(status().isOk());
     }
 
+    @Test
+    void currentUserIsResolvedFromToken() throws Exception {
+        UserAccount user = user(Role.ACCOUNTANT);
+
+        mockMvc.perform(get("/test/secure/current").header(HttpHeaders.AUTHORIZATION, bearer(user)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.userId").value(user.getId().toString()))
+                .andExpect(jsonPath("$.tenantId").value(user.getTenantId().toString()))
+                .andExpect(jsonPath("$.role").value("ACCOUNTANT"));
+    }
+
     private static UserAccount user(Role role) {
         return UserAccount.create(UUID.randomUUID(), "test@aqroiz.az", "Test İstifadəçi", null,
                 "{noop}not-used", role, NOW);
@@ -126,6 +139,11 @@ class SecurityIntegrationTests {
         @PostMapping("/echo")
         String echo() {
             return "ok";
+        }
+
+        @GetMapping("/current")
+        CurrentUser current(CurrentUser currentUser) {
+            return currentUser;
         }
     }
 }

@@ -3,6 +3,8 @@ package az.aqroiz.identity.internal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+
+import az.aqroiz.shared.security.JwtClaims;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
@@ -18,9 +20,6 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class TokenService {
-
-    static final String CLAIM_TENANT_ID = "tenantId";
-    static final String CLAIM_ROLE = "role";
 
     private final JwtEncoder jwtEncoder;
     private final JwtProperties properties;
@@ -42,8 +41,8 @@ public class TokenService {
                 .subject(user.getId().toString())
                 .issuedAt(now)
                 .expiresAt(expiresAt)
-                .claim(CLAIM_TENANT_ID, user.getTenantId().toString())
-                .claim(CLAIM_ROLE, user.getRole().name())
+                .claim(JwtClaims.TENANT_ID, user.getTenantId().toString())
+                .claim(JwtClaims.ROLE, user.getRole().name())
                 .build();
 
         JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();

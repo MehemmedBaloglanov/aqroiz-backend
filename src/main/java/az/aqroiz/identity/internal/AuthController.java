@@ -1,19 +1,15 @@
 package az.aqroiz.identity.internal;
 
 import az.aqroiz.identity.Role;
+import az.aqroiz.shared.security.CurrentUser;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import org.springframework.web.bind.annotation.*;
+
 import java.time.Instant;
 import java.util.UUID;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -51,9 +47,10 @@ class AuthController {
     }
 
     /** Tokenə görə cari istifadəçi. */
+    /** Tokenə görə cari istifadəçi. */
     @GetMapping("/me")
-    MeResponse me(@AuthenticationPrincipal Jwt jwt) {
-        AuthService.Account account = authService.currentAccount(UUID.fromString(jwt.getSubject()));
+    MeResponse me(CurrentUser currentUser) {
+        AuthService.Account account = authService.currentAccount(currentUser.userId());
         return toMe(account.user(), account.tenant());
     }
 

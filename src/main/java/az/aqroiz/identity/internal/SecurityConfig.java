@@ -10,6 +10,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import az.aqroiz.shared.security.JwtClaims;
 
 /**
  * Tətbiqin təhlükəsizlik qaydaları.
@@ -57,7 +58,7 @@ class SecurityConfig {
      */
     static JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtGrantedAuthoritiesConverter authorities = new JwtGrantedAuthoritiesConverter();
-        authorities.setAuthoritiesClaimName(TokenService.CLAIM_ROLE);
+        authorities.setAuthoritiesClaimName(JwtClaims.ROLE);
         authorities.setAuthorityPrefix("ROLE_");
 
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
