@@ -96,6 +96,21 @@ IntelliJ-də `AqroizBackendApplication` və ya:
 
 Uğur: logda `Started AqroizBackendApplication`.
 
+### `local` profili və demo hesablar
+
+IntelliJ: Run Configuration → **Active profiles: `local`** (və ya VM options: `-Dspring.profiles.active=local`). Logda: `The following 1 profile is active: "local"`.
+
+`application-local.yaml` → `aqroiz.dev-data.enabled: true`. Hər modulun öz demo loader-i var (`IdentityDevDataLoader` və s.), bazada məlumat varsa heç nə etmir. Demo məlumat **heç vaxt** Flyway miqrasiyası ilə yazılmır (miqrasiyalar prod-da da işləyir).
+
+| E-poçt | Rol | Şifrə |
+| --- | --- | --- |
+| `rehber@demo.aqroiz.az` | OWNER | `Demo-12345` |
+| `menecer@demo.aqroiz.az` | MANAGER | `Demo-12345` |
+| `qebulcu@demo.aqroiz.az` | RECEIVER | `Demo-12345` |
+| `muhasib@demo.aqroiz.az` | ACCOUNTANT | `Demo-12345` |
+
+Şirkət: Demo Meyvə İxrac MMC. Testlər və prod `local` profilini aktivləşdirmir.
+
 Layihə əmrləri (`.\mvnw ...`, `git ...`, `docker compose ...`) **yalnız IntelliJ terminalında**, layihə qovluğunda icra olunur. Administrator pəncərəsi yalnız Windows servisləri üçündür.
 
 Testlər: `.\mvnw test`. Fayl adı dəyişəndə və ya resurs silinəndə: `.\mvnw clean test`.
@@ -225,7 +240,11 @@ Bütün xəta sinifləri: `az.aqroiz.shared.error`.
 | `@Valid` validasiya xətası | 400 | `VALIDATION_FAILED` + `errors[]` |
 | Oxunmayan JSON | 400 | `MALFORMED_REQUEST` |
 | Parametrin tipi səhvdir (`/x/abc` əvəzinə rəqəm) | 400 | `TYPE_MISMATCH` |
-| `AuthenticationException` | 401 | `UNAUTHORIZED` |
+| Token yoxdur (`AuthenticationException`) | 401 | `UNAUTHORIZED` |
+| Token saxtadır və ya müddəti bitib | 401 | `TOKEN_INVALID` |
+| Girişdə səhv e-poçt və ya şifrə (`BadCredentialsException`) | 401 | `INVALID_CREDENTIALS` |
+| İstifadəçi hesabı bağlanıb (`DisabledException`) | 401 | `ACCOUNT_DISABLED` |
+| Şirkətin girişi dayandırılıb (`LockedException`) | 401 | `TENANT_SUSPENDED` |
 | `AccessDeniedException` | 403 | `FORBIDDEN` |
 | Spring MVC-nin digər xətaları (405, 415...) | müvafiq | `HTTP_{status}` |
 | Gözlənilməz xəta | 500 | `INTERNAL_ERROR` — detal yalnız logda, cavabda yox |
@@ -262,6 +281,14 @@ Cavab formatı (RFC 9457 `ProblemDetail`):
 - Oflayn sahə tətbiqindən gələn yaratma sorğuları idempotentdir (`clientId`).
 - Hər yeni və ya dəyişən endpoint `postman/` qovluğundakı kolleksiyaya əlavə edilir. Frontend API-ni oradan öyrənir.
 
+### Endpoint-lər
+
+| Metod | Ünvan | Giriş | Rol | Modul |
+| --- | --- | --- | --- | --- |
+| `GET` | `/actuator/health` | Açıq | — | Spring |
+| `POST` | `/api/auth/login` | Açıq | — | identity |
+| `GET` | `/api/auth/me` | JWT | hamısı | identity |
+
 ### Postman
 
 | Fayl | Məzmun |
@@ -271,7 +298,9 @@ Cavab formatı (RFC 9457 `ProblemDetail`):
 
 - Kolleksiya səviyyəsində `Bearer {{token}}`; giriş tələb etməyən sorğularda `noauth`.
 - Hər sorğunun `pm.test` yoxlaması var.
-- Postman dəyişiklikləri fayla özü yazmır: kolleksiya → ⋯ → Export → Collection v2.1 → fayl üzərinə yazılır → commit.
+- Postman dəyişiklikləri fayla özü yazmır: kolleksiya → ⋯ → **More → Export collection → Other** → Collection v2.1 → adı dəqiq `AqroIz.postman_collection.json` (Postman `AqroIz API...` təklif edir) → fayl üzərinə yazılır → commit.
+- `01 Auth → giris` sorğusu tokeni `{{token}}` mühit dəyişəninə yazır; qalan sorğular onu kolleksiyadan miras alır. Əvvəl həmişə login.
+- Sınaq üçün sorğunu dəyişəndə tabı **Don't save** ilə bağlayın; yeni ssenari üçün **Save As** ilə ayrıca sorğu yaradın.
 - Mühit faylına heç vaxt real şifrə və token yazılmır.
 - `/actuator/health` Spring Boot tərəfindən standart olaraq açıqdır (giriş tələb etmir).
 
@@ -323,7 +352,36 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 - Şifrələr `PasswordEncoderFactories.createDelegatingPasswordEncoder()` ilə heşlənir (`{bcrypt}...` formatı); eyni şifrə hər dəfə fərqli heş verir. Şifrənin özü heç vaxt saxlanılmır və loga yazılmır.
 - Giriş JWT ilə, HS256. Claim-lər: `iss`, `sub` (istifadəçi ID), `tenantId`, `role`, `iat`, `exp`. Tokenə şifrə, e-poçt kimi məlumat yazılmır (məzmun şifrələnmir).
 - Token yoxlaması: imza, bitmə vaxtı (bizim `Clock` ilə, 30 san. tolerantlıq), issuer.
-- Bean-lər: `az.aqroiz.identity.internal.JwtConfig`; token yaradan: `TokenService`.
+- Bean-lər: `az.aqroiz.identity.internal.JwtConfig`; token yaradan: `TokenService`. Claim adları: `az.aqroiz.shared.security.JwtClaims`.
+
+**Təhlükəsizlik qaydaları** (`identity.internal.SecurityConfig`):
+
+| Ünvan | Giriş |
+| --- | --- |
+| `GET /actuator/health`, `/actuator/health/**` | Açıq |
+| `POST /api/auth/login` | Açıq |
+| `/error` | Açıq (əks halda əsl xəta 401 ilə gizlənər) |
+| Qalan hər şey | JWT tələb olunur |
+
+- Stateless (sessiya yoxdur), login forması, Basic auth, logout söndürülüb.
+- **CSRF söndürülüb**, çünki token cookie-də yox, `Authorization` başlığındadır. Token gələcəkdə cookie-yə köçürülsə, CSRF **mütləq** qaytarılmalıdır.
+- `role` claim-i → `ROLE_<ROL>` icazəsi; metodlarda `@PreAuthorize("hasRole('OWNER')")` (`@EnableMethodSecurity`).
+- Filtr səviyyəsindəki 401/403 `ProblemDetailSecurityHandler` vasitəsilə `GlobalExceptionHandler`-ə ötürülür — format bir yerdədir. 401-də `WWW-Authenticate: Bearer` başlığı.
+
+**Giriş qaydaları** (`AuthService`):
+
+- Mövcud olmayan e-poçt və səhv şifrə **eyni** cavabı alır (“E-poçt və ya şifrə yanlışdır.”).
+- E-poçt tapılmayanda da saxta heşlə yoxlama aparılır — cavab vaxtı e-poçtun mövcudluğunu açıqlamasın.
+- Bağlanmış hesab və dayandırılmış şirkət yalnız şifrə düzgün olandan sonra bildirilir.
+- 72 baytdan uzun şifrə dərhal rədd edilir (bcrypt yalnız 72 baytı nəzərə alır).
+- Uğurlu girişdə `last_login_at` yazılır (dirty checking, `save()` yoxdur).
+
+**Cari istifadəçi və tenant** (`az.aqroiz.shared.security`):
+
+- Controller metodunda parametr: `CurrentUser currentUser` (`userId`, `tenantId`, `role`).
+- **`tenantId` yalnız `CurrentUser`-dən götürülür — heç vaxt URL-dən, sorğu parametrindən və ya JSON-dan.**
+- Servislər `CurrentUser`-i özləri oxumur; controller `tenantId`-ni parametr kimi ötürür.
+- `CurrentUser.role` `String`-dir (`shared` → `identity` asılılığı dövri asılılıq yaradardı).
 
 ### Rollar
 
@@ -346,6 +404,13 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 - Testcontainers PostgreSQL imici `compose.yaml`-dakı ilə **eyni** olmalıdır (`TestcontainersConfiguration.POSTGRES_IMAGE`). Versiya dəyişəndə hər ikisi birlikdə dəyişdirilir.
 - Lokal inkişaf üçün yeganə işə salma yolu: `compose.yaml` + `AqroizBackendApplication`. Testlər isə həmişə Testcontainers ilə işləyir və lokal bazaya toxunmur.
 - Bütün testlər: `.\mvnw test` (IntelliJ terminalında, layihə qovluğunda).
+- **`@WebMvcTest` həmişə `controllers = ...` ilə** yazılır: əks halda bütün controller-ləri yükləyir, onların servisləri isə kontekstdə olmur.
+- `@WebMvcTest` bütün `WebMvcConfigurer`-ləri yükləyir, adi `@Component`-ləri yükləmir — `WebMvcConfigurer`-lərə bean inject etməyin.
+- Yalnız xəta formatını yoxlayan testlərdə təhlükəsizlik filtrləri söndürülür: `@AutoConfigureMockMvc(addFilters = false)`.
+- Təhlükəsizlik testləri: `@SpringBootTest` + `@AutoConfigureMockMvc` + real JWT (`TokenService`).
+- `SecurityContextHolder`-ə toxunan testlərdə `@AfterEach SecurityContextHolder.clearContext()`.
+- `@Transactional` test + `MockMvc`: sorğu test tranzaksiyası daxilində işləyir, sonda geri qaytarılır.
+- Boot 4 paketləri: `org.springframework.boot.webmvc.test.autoconfigure.{WebMvcTest, AutoConfigureMockMvc}` — yoxlanılıb.
 - Hər biznes qaydası (B1–B11) ən azı bir testlə qorunur.
 
 ---
@@ -371,8 +436,8 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 | 1 | Layihə skeleti, Docker PostgreSQL, Git | ✅ Hazır |
 | 2 | README.md, PROGRESS.md | ✅ Hazır |
 | 3 | `shared`: modul, `Clock`, xəta formatı | ✅ Hazır (`CurrentUser` və `NumberingService` `identity`-dən sonra) |
-| 4 | `identity`: tenant, istifadəçilər, rollar, JWT ilə giriş | 🔄 Davam edir (4.1–4.4 hazır) |
-| 5 | `catalog`: məhsullar, sortlar, gündəlik qiymətlər | ⏳ |
+| 4 | `identity`: tenant, istifadəçilər, rollar, JWT ilə giriş, `CurrentUser` | ✅ Hazır |
+| 5 | `catalog`: məhsullar, sortlar, gündəlik qiymətlər | 🔄 Növbəti |
 | 6 | `farmers`: fermer reyestri | ⏳ |
 | 7 | `procurement`: qəbul, ləğv, idempotent sahə sorğuları | ⏳ |
 | 8 | `lots`: partiyalar | ⏳ |
@@ -418,6 +483,12 @@ Bu qaydalar kodda və testlərdə qorunmalıdır. Status sütunu hansının art�
 | 2026-11-09 | İstifadəçi entity-si `UserAccount` (`User` yox) | Spring Security-nin `User` sinfi ilə ad toqquşmasının qarşısı |
 | 2026-11-09 | JWT HS256, ömür 12 saat, refresh token sonra | Tokeni verən və yoxlayan eyni tətbiqdir; qəbulçu iş günü ərzində təkrar girmir |
 | 2026-11-09 | JWT açarı < 32 bayt olsa tətbiq işə düşmür | HS256 standartı; səhv konfiqurasiya erkən aşkarlansın |
+| 2026-11-09 | Öz `SecurityFilterChain`; standart olaraq hər şey bağlı | Açıq endpoint-lər açıq şəkildə sadalanır |
+| 2026-11-09 | CSRF söndürülüb | Token başlıqdadır, cookie yoxdur |
+| 2026-11-09 | 401/403 `HandlerExceptionResolver` vasitəsilə `GlobalExceptionHandler`-ə | Vahid format, kod təkrarı yoxdur |
+| 2026-11-09 | Login-də səhv e-poçt və səhv şifrə eyni cavab + saxta heş | E-poçt sadalama hücumunun qarşısı |
+| 2026-11-09 | Demo məlumat `local` profili və modul loader-ləri ilə, miqrasiya ilə yox | Demo şifrəli istifadəçilər prod-a düşməsin |
+| 2026-11-09 | `tenantId` yalnız tokendən (`CurrentUser`) | Bir şirkətin başqa şirkətin məlumatını görməsinin qarşısı |
 | 2026-11-01 | Repo public | Claude-un linkdən yoxlaya bilməsi; gizli dəyərlər və müştəri məlumatları heç vaxt repoya düşmür |
 
 ---

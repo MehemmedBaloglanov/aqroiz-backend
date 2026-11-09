@@ -6,16 +6,27 @@ Bu fayl işin gündəliyidir: harada qaldıq, nə hazırdır, növbəti addım n
 
 ## Cari vəziyyət
 
-- **Son tamamlanan:** Addım 4.4 — şifrə heşləmə və JWT (`JwtProperties`, `JwtConfig`, `TokenService`).
-- **Növbəti addım:** Addım 4.5 — öz `SecurityFilterChain`: açıq/bağlı endpoint-lər, JWT → istifadəçi/şirkət/rol, stateless, CSRF söndürülür, 401/403 `ProblemDetail` formatında.
+- **Son tamamlanan:** Mərhələ 4 — `identity` modulu (4.1–4.7).
+- **Növbəti addım:** Mərhələ 5 — `catalog` modulu, Addım 5.1 (V2 miqrasiyası).
 - **Bazada cədvəl:** `flyway_schema_history`, `tenants`, `users`.
+- **Lokal işə salma:** IntelliJ Run Configuration → Active profiles: `local` (demo hesablar README-də).
 - **Tətbiq işə düşür:** Bəli (`Started AqroizBackendApplication`).
-- **Testlər:** 34 test (`.\mvnw clean test` → BUILD SUCCESS).
+- **Testlər:** 55 test (`.\mvnw clean test` → BUILD SUCCESS).
 - **Yoxlanmalı:** Sessiya 1-in son commit-inin GitHub-a düşdüyü (`git status`, `git log --oneline`, `git ls-files`).
 
 ---
 
-## Növbəti addım: `identity` modulu
+## Növbəti addım: `catalog` modulu
+
+Məqsəd: hər şirkətin məhsulları (xurma, alma, pomidor...), sortları (I, II, III) və gündəlik alış qiymətləri. Qəbz (`procurement`) qiyməti buradan götürüb dondurulacaq.
+
+1. V2 miqrasiyası: `products`, `daily_prices` (tarixçə ilə, üzərinə yazılmır).
+2. Entity-lər, repository-lər, testlər (qiymətin “verilən tarixdə qüvvədə olan” seçimi).
+3. `CatalogService` + endpoint-lər: məhsullar (siyahı, yaratma), qiymətlər (cari siyahı, təyin etmə) — `CurrentUser` və rollar ilə.
+4. Demo məhsullar və qiymətlər (`CatalogDevDataLoader`).
+5. Postman: `02 Kataloq`.
+
+## Köhnə plan: `identity` modulu (tamamlandı)
 
 Kiçik addımlara bölünəcək, hər biri ayrıca təsdiqlə:
 
@@ -23,10 +34,9 @@ Kiçik addımlara bölünəcək, hər biri ayrıca təsdiqlə:
 2. ✅ Flyway `V1__identity.sql`: `tenants`, `users` cədvəlləri.
 3. ✅ Entity-lər (`Tenant`, `UserAccount`) və repository-lər + Testcontainers ilə repository testi.
 4. ✅ Şifrələmə (`PasswordEncoder`) və JWT (imzalama, yoxlama, `JwtProperties`).
-5. Öz `SecurityFilterChain`: stateless, JWT, CSRF söndürülür, 401/403 də `ProblemDetail` formatında.
-6. `POST /api/auth/login`, `GET /api/auth/me` + Postman.
-7. `CurrentUser` (shared) — tenant və rol token-dən.
-8. Dev üçün ilkin məlumat (demo tenant və istifadəçilər).
+5. ✅ Öz `SecurityFilterChain`: stateless, JWT, CSRF söndürülür, 401/403 də `ProblemDetail` formatında.
+6. ✅ `POST /api/auth/login`, `GET /api/auth/me` + Postman + demo istifadəçilər (8-ci bənd buraya birləşdirildi).
+7. ✅ `CurrentUser` (shared) — tenant və rol token-dən.
 
 ## Köhnə plan: `shared` modulu (tamamlandı)
 
@@ -55,14 +65,16 @@ Qeyd: cari istifadəçi (`CurrentUser`) və sənəd nömrələri (`NumberingServ
 
 | # | Qeyd | Nə vaxt |
 | --- | --- | --- |
-| T1 | `Using generated security password` — Spring Security-nin standart konfiqurasiyası | `identity`-də öz konfiqurasiyamızla yox olacaq |
+| T1 | ~~`Using generated security password`~~ | ✅ Bağlandı (4.5) |
 | T2 | Mockito “self-attaching” xəbərdarlığı (gələcək JDK-larda qadağan) | Mockito istifadəsinə başlayanda `pom.xml`-də agent kimi qoşulacaq |
 | T3 | Maven-in `flyway-community-db-support ... 401` xəbərdarlığı | Zərərsiz, toxunmuruq |
 | T4 | Boş `static` və `templates` qovluqları | İstəyə bağlı silinə bilər |
-| T5 | `GlobalExceptionHandlerTests`-də `@WithMockUser` və `csrf()` | 4.5-də sadələşəcək |
+| T5 | ~~`GlobalExceptionHandlerTests`-də `@WithMockUser` və `csrf()`~~ | ✅ Bağlandı (4.5) |
 | T6 | `Annotation processing is enabled...` kompilyator məlumatı | Zərərsiz; lazım olsa `pom.xml`-də prosessorlar açıq göstəriləcək |
 | T7 | JWT açarının dev dəyəri repodadır | Prod profilində dev açarla işə düşməyi qadağan edən yoxlama (deploy-dan əvvəl) |
 | T8 | Refresh token yoxdur, token 12 saat | Pilotdan sonra qiymətləndirmək |
+| T9 | Giriş cəhdlərinin sayı məhdudlaşdırılmayıb (brute-force) | Deploy-dan əvvəl |
+| T10 | Hesab bağlananda token bitənə qədər (12 saat) digər endpoint-lərdə işləyir; yalnız `/me` dərhal yoxlayır | T8 ilə birlikdə həll (qısa ömürlü token + refresh) |
 
 ---
 
@@ -204,3 +216,26 @@ Qeyd: cari istifadəçi (`CurrentUser`) və sənəd nömrələri (`NumberingServ
 | GitHub səhifəsi yenə köhnə keş | Claude-un veb aləti | `git status/log/ls-files`, SHA ilə raw linklər və ya ZIP (`git archive`) |
 
 **Növbəti sessiyada ilk iş:** Docker-i açmaq, `git log --oneline -3`, sonra Addım 4.5.
+
+### 2026-11-09 — Sessiya 5: `identity` modulunun tamamlanması
+
+**Addım 4.5 — Təhlükəsizlik konfiqurasiyası:** `SecurityConfig` (açıq endpoint-lər, stateless, CSRF söndürülüb, `role` → `ROLE_*`, `@EnableMethodSecurity`), `ProblemDetailSecurityHandler`, `TOKEN_INVALID` kodu. `GlobalExceptionHandlerTests` sadələşdi (`addFilters = false`). `SecurityIntegrationTests` (7). Postman: `Tokensiz sorğu` (401). Logda `generated security password` yoxdur.
+
+**Addım 4.6 — Giriş:** `AuthService` (eyni cavab, saxta heş, 72 bayt, hesab/şirkət statusu, `last_login_at`), `AuthController` (`POST /api/auth/login`, `GET /api/auth/me`), yeni kodlar (`INVALID_CREDENTIALS`, `ACCOUNT_DISABLED`, `TENANT_SUSPENDED`), `application-local.yaml`, `IdentityDevDataLoader` (4 demo istifadəçi). `AuthIntegrationTests` (10). Postman: `01 Auth` (giriş, mən kiməm, səhv şifrə). `expiresAt` Jackson 3-də ISO formatında gəlir (yoxlanılıb).
+
+**Addım 4.7 — `CurrentUser`:** `shared.security`: `JwtClaims`, `CurrentUser`, `CurrentUserProvider`, `CurrentUserWebConfig` (argument resolver). `TokenService`, `SecurityConfig`, `AuthController` buna keçirildi. `CurrentUserProviderTests` (3) + 1 inteqrasiya testi. Postman-da sübut: qəbulçu tokeni ilə `/me` → Murad Kərimov, `RECEIVER`.
+
+**Nəticə:** 55 test, BUILD SUCCESS.
+
+**Rastlaşılan problemlər:**
+
+| Problem | Səbəb | Həll |
+| --- | --- | --- |
+| Export iki fayl yaratdı (`AqroIz API.postman_collection.json`) | Postman faylı kolleksiyanın adı ilə saxlayır | Köhnəni silmək, yenini `AqroIz.postman_collection.json` adlandırmaq; IntelliJ-in “not safe to delete” xəbərdarlığında Refactor Anyway |
+| `git status`: `deleted` + `untracked` eyni fayl | IntelliJ silməni stage edib, yeni fayl hələ yox | `git add .` → `modified` |
+| `GlobalExceptionHandlerTests` 7 test düşdü (“failure threshold exceeded”) | `@WebMvcTest` yeni `AuthController`-i yükləyirdi, `AuthService` isə kontekstdə yox idi | `@WebMvcTest(controllers = TestController.class)` |
+| Səhv şifrə ssenarisi əsas `giris` sorğusunda dəyişdirilmişdi | — | Save As ilə ayrıca sorğu, əsas sorğu Don't save |
+| Qəbulçu ilə giriş `Giriş — səhv şifrə` sorğusunda edilmişdi, token mühitə yazılmadı | O sorğunun skripti `token`-i yazmır | Rol dəyişikliyi `giris` sorğusu ilə yoxlanıldı |
+| `CurrentUser` nümunə kodu (`FarmerController`) layihəyə yazılmalıdırmı? | Nümunə idi | Yalnız gələcək `farmers` modulu üçün |
+
+**Növbəti sessiyada ilk iş:** Docker, `git log --oneline -3`, Addım 5.1.
