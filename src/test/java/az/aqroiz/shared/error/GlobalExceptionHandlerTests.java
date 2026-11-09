@@ -17,6 +17,7 @@ import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
@@ -35,7 +36,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @WebMvcTest
 @Import({TimeConfig.class, GlobalExceptionHandlerTests.TestController.class})
-@WithMockUser
+@AutoConfigureMockMvc(addFilters = false)
 class GlobalExceptionHandlerTests {
 
     @Autowired
@@ -62,7 +63,7 @@ class GlobalExceptionHandlerTests {
 
     @Test
     void validationReturns400WithFieldErrorsInAzerbaijani() throws Exception {
-        mockMvc.perform(post("/test/validation").with(csrf())
+        mockMvc.perform(post("/test/validation")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"name": "", "amount": -5}
@@ -77,7 +78,7 @@ class GlobalExceptionHandlerTests {
 
     @Test
     void malformedJsonReturns400() throws Exception {
-        mockMvc.perform(post("/test/validation").with(csrf())
+        mockMvc.perform(post("/test/validation")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{"))
                 .andExpect(status().isBadRequest())
@@ -101,7 +102,7 @@ class GlobalExceptionHandlerTests {
 
     @Test
     void unsupportedMethodGetsCodeAndTimestamp() throws Exception {
-        mockMvc.perform(post("/test/not-found").with(csrf()))
+        mockMvc.perform(post("/test/not-found"))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.code").value("HTTP_405"))
                 .andExpect(jsonPath("$.title").value("Metod dəstəklənmir"))

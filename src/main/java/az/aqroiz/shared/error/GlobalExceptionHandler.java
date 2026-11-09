@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -73,6 +74,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(AuthenticationException.class)
     ProblemDetail handleAuthentication(AuthenticationException ex, HttpServletRequest request) {
+        if (ex instanceof InvalidBearerTokenException) {
+            return problem(HttpStatus.UNAUTHORIZED, "Giriş tələb olunur",
+                    "Giriş tokeni etibarsızdır və ya müddəti bitib. Yenidən daxil olun.",
+                    ErrorCodes.TOKEN_INVALID, request.getRequestURI());
+        }
         return problem(HttpStatus.UNAUTHORIZED, "Giriş tələb olunur", "Sistemə daxil olun.",
                 ErrorCodes.UNAUTHORIZED, request.getRequestURI());
     }

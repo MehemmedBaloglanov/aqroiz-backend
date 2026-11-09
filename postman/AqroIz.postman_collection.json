@@ -1,46 +1,89 @@
 {
   "info": {
+    "_postman_id": "dfb2a868-8615-40b3-a513-06e05693b483",
     "name": "AqroIz API",
     "description": "AqroIz backend API sorğuları. Bu fayl repoda saxlanılır: Postman-da dəyişiklik edəndən sonra kolleksiyanı Export edib bu faylın üzərinə yazın və commit edin.",
-    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-  },
-  "auth": {
-    "type": "bearer",
-    "bearer": [
-      { "key": "token", "value": "{{token}}", "type": "string" }
-    ]
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "33671680"
   },
   "item": [
     {
       "name": "00 Sistem",
-      "description": "Tətbiqin vəziyyəti. Giriş tələb etmir.",
       "item": [
         {
           "name": "Sağlamlıq yoxlaması",
-          "request": {
-            "auth": { "type": "noauth" },
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/actuator/health",
-              "host": ["{{baseUrl}}"],
-              "path": ["actuator", "health"]
-            },
-            "description": "Gözlənilən: 200 OK, {\"status\":\"UP\"}"
-          },
           "event": [
             {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('Tətbiq işləyir (UP)', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));\npm.test('Tətbiq işləyir (UP)', () => pm.expect(pm.response.json().status).to.eql('UP'));"
                 ]
               }
             }
-          ]
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/actuator/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "actuator",
+                "health"
+              ]
+            },
+            "description": "Gözlənilən: 200 OK, {\"status\":\"UP\"}"
+          },
+          "response": []
+        },
+        {
+          "name": "Tokensiz sorğu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 401', () => pm.response.to.have.status(401));\r\npm.test('Kod UNAUTHORIZED', () => pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ping",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ping"
+              ]
+            }
+          },
+          "response": []
         }
-      ]
+      ],
+      "description": "Tətbiqin vəziyyəti. Giriş tələb etmir."
     }
-  ]
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  }
 }
