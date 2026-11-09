@@ -15,6 +15,9 @@ public final class ErrorCodes {
     public static final String TOKEN_INVALID = "TOKEN_INVALID";
     public static final String FORBIDDEN = "FORBIDDEN";
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";
+    public static final String INVALID_CREDENTIALS = "INVALID_CREDENTIALS";
+    public static final String ACCOUNT_DISABLED = "ACCOUNT_DISABLED";
+    public static final String TENANT_SUSPENDED = "TENANT_SUSPENDED";
 
     private ErrorCodes() {
     }

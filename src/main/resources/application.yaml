@@ -26,3 +26,5 @@ aqroiz:
       secret: ${AQROIZ_JWT_SECRET:dev-only-secret-change-me-0123456789-abcdef}
       ttl: PT12H
       issuer: aqroiz
+  dev-data:
+    enabled: false

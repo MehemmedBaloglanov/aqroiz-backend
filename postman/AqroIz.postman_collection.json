@@ -74,6 +74,83 @@
         }
       ],
       "description": "Tətbiqin vəziyyəti. Giriş tələb etmir."
+    },
+    {
+      "name": "01 Auth",
+      "item": [
+        {
+          "name": "giris",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));\r\nconst body = pm.response.json();\r\npm.test('Token gəldi', () => pm.expect(body.accessToken).to.be.a('string'));\r\npm.test('Rol OWNER', () => pm.expect(body.user.role).to.eql('OWNER'));\r\n// Tokeni mühitə yazırıq: kolleksiyanın bütün sorğuları onu avtomatik istifadə edəcək\r\npm.environment.set('token', body.accessToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"email\": \"rehber@demo.aqroiz.az\",\r\n  \"password\": \"Demo-12345\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Mən kiməm",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "me"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Giriş — səhv şifrə",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": ""
+            }
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "auth": {

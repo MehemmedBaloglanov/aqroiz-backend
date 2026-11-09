@@ -1,0 +1,5 @@
+# Lokal inkişaf profili. IntelliJ: Run Configuration → Active profiles: local
+# Prod-da bu profil HEÇ VAXT aktivləşdirilmir.
+aqroiz:
+  dev-data:
+    enabled: true

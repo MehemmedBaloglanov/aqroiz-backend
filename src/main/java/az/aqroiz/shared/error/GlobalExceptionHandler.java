@@ -23,6 +23,9 @@ import org.springframework.web.context.request.ServletWebRequest;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 
 /**
  * Bütün API xətalarını vahid formata (RFC 9457 ProblemDetail + code + timestamp) çevirir.
@@ -74,13 +77,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(AuthenticationException.class)
     ProblemDetail handleAuthentication(AuthenticationException ex, HttpServletRequest request) {
-        if (ex instanceof InvalidBearerTokenException) {
-            return problem(HttpStatus.UNAUTHORIZED, "Giriş tələb olunur",
+        String path = request.getRequestURI();
+        return switch (ex) {
+            case InvalidBearerTokenException e -> problem(HttpStatus.UNAUTHORIZED, "Giriş tələb olunur",
                     "Giriş tokeni etibarsızdır və ya müddəti bitib. Yenidən daxil olun.",
-                    ErrorCodes.TOKEN_INVALID, request.getRequestURI());
-        }
-        return problem(HttpStatus.UNAUTHORIZED, "Giriş tələb olunur", "Sistemə daxil olun.",
-                ErrorCodes.UNAUTHORIZED, request.getRequestURI());
+                    ErrorCodes.TOKEN_INVALID, path);
+            case BadCredentialsException e -> problem(HttpStatus.UNAUTHORIZED, "Giriş uğursuz oldu",
+                    "E-poçt və ya şifrə yanlışdır.", ErrorCodes.INVALID_CREDENTIALS, path);
+            case DisabledException e -> problem(HttpStatus.UNAUTHORIZED, "Hesab bağlanıb",
+                    e.getMessage(), ErrorCodes.ACCOUNT_DISABLED, path);
+            case LockedException e -> problem(HttpStatus.UNAUTHORIZED, "Şirkətin girişi dayandırılıb",
+                    e.getMessage(), ErrorCodes.TENANT_SUSPENDED, path);
+            default -> problem(HttpStatus.UNAUTHORIZED, "Giriş tələb olunur", "Sistemə daxil olun.",
+                    ErrorCodes.UNAUTHORIZED, path);
+        };
     }
 
     // ---------- Gözlənilməz xətalar ----------

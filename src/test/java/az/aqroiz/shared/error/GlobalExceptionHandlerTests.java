@@ -34,8 +34,8 @@ import org.springframework.web.bind.annotation.RestController;
  * Xəta formatını yoxlayır. Bazanı qaldırmır: yalnız web qatı (@WebMvcTest).
  * Test üçün xüsusi controller istifadə olunur, çünki hələ real endpoint yoxdur.
  */
-@WebMvcTest
-@Import({TimeConfig.class, GlobalExceptionHandlerTests.TestController.class})
+@WebMvcTest(controllers = GlobalExceptionHandlerTests.TestController.class)
+    @Import({TimeConfig.class, GlobalExceptionHandlerTests.TestController.class})
 @AutoConfigureMockMvc(addFilters = false)
 class GlobalExceptionHandlerTests {
 
